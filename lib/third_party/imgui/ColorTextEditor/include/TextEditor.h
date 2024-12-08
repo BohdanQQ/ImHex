@@ -8,6 +8,7 @@
 #include <unordered_map>
 #include <map>
 #include <regex>
+#include <variant>
 #include "imgui.h"
 #include "imgui_internal.h"
 
@@ -366,6 +367,8 @@ public:
 
 	void InsertText(const std::string& aValue);
 	void InsertText(const char* aValue);
+  class UndoSession;
+  void InsertTextUndoable(const char* aValue, UndoSession& undoer);
 
 	void MoveUp(int aAmount = 1, bool aSelect = false);
 	void MoveDown(int aAmount = 1, bool aSelect = false);
@@ -380,6 +383,7 @@ public:
 	void SetSelectionEnd(const Coordinates& aPosition);
 	void SetSelection(const Coordinates& aStart, const Coordinates& aEnd, SelectionMode aMode = SelectionMode::Normal);
     Selection GetSelection() const;
+    SelectionMode GetSelectionMode() const;
 	void SelectWordUnderCursor();
 	void SelectAll();
 	bool HasSelection() const;
@@ -517,7 +521,25 @@ private:
 		EditorState mAfter;
 	};
 
-	typedef std::vector<UndoRecord> UndoBuffer;
+  class CompoundUndo {
+    std::vector<std::variant<UndoRecord, CompoundUndo>> m_inner;
+  public:
+
+		CompoundUndo() {};
+    ~CompoundUndo() {}
+
+		void Undo(TextEditor* aEditor);
+		void Redo(TextEditor* aEditor);
+    template<typename T>
+    void Add(const T&) = delete;
+    
+    template <typename UndoT>
+    void Add(UndoT&& record) {
+      m_inner.emplace_back(record);
+    }
+  };
+
+	typedef std::vector<std::variant<UndoRecord, CompoundUndo>> UndoBuffer;
 
 	void ProcessInputs();
 	void Colorize(int aFromLine = 0, int aCount = -1);
@@ -531,7 +553,21 @@ private:
 	void Advance(Coordinates& aCoordinates) const;
 	void DeleteRange(const Coordinates& aStart, const Coordinates& aEnd);
 	int InsertTextAt(Coordinates& aWhere, const char* aValue);
-	void AddUndo(UndoRecord& aValue);
+	void AddUndo(UndoRecord&& aValue);
+  template<class T>
+  void AddUndoGen(T&& value) {
+      IM_ASSERT(!mReadOnly);
+    // printf("AddUndo: (@%d.%d) +\'%s' [%d.%d .. %d.%d], -\'%s', [%d.%d .. %d.%d] (@%d.%d)\n",
+    //	aValue.mBefore.mCursorPosition.mLine, aValue.mBefore.mCursorPosition.mColumn,
+    //	aValue.mAdded.c_str(), aValue.mAddedStart.mLine, aValue.mAddedStart.mColumn, aValue.mAddedEnd.mLine, aValue.mAddedEnd.mColumn,
+    //	aValue.mRemoved.c_str(), aValue.mRemovedStart.mLine, aValue.mRemovedStart.mColumn, aValue.mRemovedEnd.mLine, aValue.mRemovedEnd.mColumn,
+    //	aValue.mAfter.mCursorPosition.mLine, aValue.mAfter.mCursorPosition.mColumn
+    //	);
+
+    mUndoBuffer.resize((size_t)(mUndoIndex + 1));
+    mUndoBuffer.back() = std::variant<UndoRecord, CompoundUndo>(std::move(value));
+    ++mUndoIndex;
+  }
 	Coordinates ScreenPosToCoordinates(const ImVec2& aPosition) const;
 	Coordinates FindWordStart(const Coordinates& aFrom) const;
 	Coordinates FindWordEnd(const Coordinates& aFrom) const;
@@ -617,6 +653,28 @@ private:
 
     static const int sCursorBlinkInterval;
     static const int sCursorBlinkOnTime;
+
+  public:
+    class UndoSession {
+    template<class T>
+    void AddUndo(T& undo) = delete;
+    template<class T>
+    void AddUndo(T&& undo) {
+      m_result.Add(std::move(undo));
+    }
+    UndoSession() : m_result() {}
+    CompoundUndo m_result;
+    friend TextEditor;
+  };
+
+  UndoSession StartUndoSession() {
+    return UndoSession();
+  }
+  
+  void EndUndoSession(UndoSession&& builder) {
+    AddUndoGen(std::move(builder).m_result);
+  }
+
 };
 
 bool TokenizeCStyleString(const char * in_begin, const char * in_end, const char *& out_begin, const char *& out_end);

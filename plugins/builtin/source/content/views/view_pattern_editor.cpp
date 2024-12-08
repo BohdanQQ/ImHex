@@ -2451,6 +2451,38 @@ namespace hex::plugin::builtin {
             m_textEditor.SetBreakpoints(m_breakpoints);
         });
 
+        ShortcutManager::addShortcut(this, CTRL + Keys::K + AllowWhileTyping, "hex.builtin.view.pattern_editor.shortcut.comment", [this] {
+            // const auto cursorLine = m_textEditor.GetCursorPosition().mLine;
+            if (m_textEditor.IsReadOnly()) {
+              return;
+            }
+
+            const char COMMENT_STR[3] = "//";
+            auto [selectionStart, selectionEnd] = m_textEditor.GetSelection();
+            const auto mode = m_textEditor.GetSelectionMode();
+            if (selectionStart.mLine > selectionEnd.mLine) {
+              std::swap(selectionStart, selectionEnd);
+            } 
+            const auto startLine = selectionStart.mLine;
+            auto originalCursor = m_textEditor.GetCursorPosition();
+            auto linesToPrepend = std::max(1, selectionEnd.mLine - startLine + 1);
+            
+            auto session = m_textEditor.StartUndoSession();
+            for (auto lineOffset = 0; lineOffset < linesToPrepend; ++lineOffset) {
+              auto line = startLine + lineOffset;
+              if (m_textEditor.GetLineText(line).empty()) {
+                continue;
+              }
+              m_textEditor.JumpToLine(line);
+              m_textEditor.InsertTextUndoable(COMMENT_STR, session);
+            }
+            m_textEditor.EndUndoSession(std::move(session));
+
+            originalCursor.mColumn += sizeof(COMMENT_STR) - 1;
+            m_textEditor.SetCursorPosition(originalCursor);
+            m_textEditor.SetSelection(selectionStart, selectionEnd, mode);
+        });
+
         /* Trigger evaluation */
         ShortcutManager::addGlobalShortcut(Keys::F5 + AllowWhileTyping, "hex.builtin.view.pattern_editor.shortcut.run_pattern", [this] {
             auto &runtime = ContentRegistry::PatternLanguage::getRuntime();

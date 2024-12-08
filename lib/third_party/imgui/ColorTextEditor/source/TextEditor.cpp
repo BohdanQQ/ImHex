@@ -292,18 +292,8 @@ int TextEditor::InsertTextAt(Coordinates & /* inout */ aWhere, const char *aValu
     return totalLines;
 }
 
-void TextEditor::AddUndo(UndoRecord &aValue) {
-    IM_ASSERT(!mReadOnly);
-    // printf("AddUndo: (@%d.%d) +\'%s' [%d.%d .. %d.%d], -\'%s', [%d.%d .. %d.%d] (@%d.%d)\n",
-    //	aValue.mBefore.mCursorPosition.mLine, aValue.mBefore.mCursorPosition.mColumn,
-    //	aValue.mAdded.c_str(), aValue.mAddedStart.mLine, aValue.mAddedStart.mColumn, aValue.mAddedEnd.mLine, aValue.mAddedEnd.mColumn,
-    //	aValue.mRemoved.c_str(), aValue.mRemovedStart.mLine, aValue.mRemovedStart.mColumn, aValue.mRemovedEnd.mLine, aValue.mRemovedEnd.mColumn,
-    //	aValue.mAfter.mCursorPosition.mLine, aValue.mAfter.mCursorPosition.mColumn
-    //	);
-
-    mUndoBuffer.resize((size_t)(mUndoIndex + 1));
-    mUndoBuffer.back() = aValue;
-    ++mUndoIndex;
+void TextEditor::AddUndo(UndoRecord &&aValue) {
+    AddUndoGen(std::move(aValue));
 }
 
 TextEditor::Coordinates TextEditor::ScreenPosToCoordinates(const ImVec2 &aPosition) const {
@@ -1364,7 +1354,7 @@ void TextEditor::EnterCharacter(ImWchar aChar, bool aShift) {
 
                 mState.mSelectionStart = start;
                 mState.mSelectionEnd   = end;
-                AddUndo(u);
+                AddUndo(std::move(u));
 
                 mTextChanged = true;
 
@@ -1469,7 +1459,7 @@ void TextEditor::EnterCharacter(ImWchar aChar, bool aShift) {
     u.mAddedEnd = GetActualCursorCoordinates();
     u.mAfter    = mState;
 
-    AddUndo(u);
+    AddUndo(std::move(u));
 
     Colorize(coord.mLine - 1, 3);
 
@@ -1550,12 +1540,37 @@ TextEditor::Selection TextEditor::GetSelection() const {
     return {mState.mSelectionStart, mState.mSelectionEnd};
 }
 
+TextEditor::SelectionMode TextEditor::GetSelectionMode() const {
+    return mSelectionMode;
+}
+
 void TextEditor::SetTabSize(int aValue) {
     mTabSize = std::max(0, std::min(32, aValue));
 }
 
 void TextEditor::InsertText(const std::string &aValue) {
     InsertText(aValue.c_str());
+}
+
+void TextEditor::InsertTextUndoable(const char* aValue, UndoSession& undoer) {
+        UndoRecord u;
+        u.mBefore = mState;
+
+        if (HasSelection()) {
+            u.mRemoved      = GetSelectedText();
+            u.mRemovedStart = mState.mSelectionStart;
+            u.mRemovedEnd   = mState.mSelectionEnd;
+            DeleteSelection();
+        }
+
+        u.mAdded      = aValue;
+        u.mAddedStart = GetActualCursorCoordinates();
+
+        InsertText(aValue);
+
+        u.mAddedEnd = GetActualCursorCoordinates();
+        u.mAfter    = mState;
+        undoer.AddUndo(std::move(u));
 }
 
 void TextEditor::InsertText(const char *aValue) {
@@ -1892,7 +1907,7 @@ void TextEditor::Delete() {
     }
 
     u.mAfter = mState;
-    AddUndo(u);
+    AddUndo(std::move(u));
     std::string findWord = mFindReplaceHandler.GetFindWord();
     if (!findWord.empty()) {
         mFindReplaceHandler.resetMatches();
@@ -1965,7 +1980,7 @@ void TextEditor::Backspace() {
     }
 
     u.mAfter = mState;
-    AddUndo(u);
+    AddUndo(std::move(u));
     std::string findWord = mFindReplaceHandler.GetFindWord();
     if (!findWord.empty()) {
         mFindReplaceHandler.resetMatches();
@@ -2015,7 +2030,7 @@ void TextEditor::Cut() {
             DeleteSelection();
 
             u.mAfter = mState;
-            AddUndo(u);
+            AddUndo(std::move(u));
         }
     }
     std::string findWord = mFindReplaceHandler.GetFindWord();
@@ -2048,7 +2063,7 @@ void TextEditor::Paste() {
 
         u.mAddedEnd = GetActualCursorCoordinates();
         u.mAfter    = mState;
-        AddUndo(u);
+        AddUndo(std::move(u));
     }
     std::string findWord = mFindReplaceHandler.GetFindWord();
     if (!findWord.empty()) {
@@ -2067,7 +2082,10 @@ bool TextEditor::CanRedo() const {
 
 void TextEditor::Undo(int aSteps) {
     while (CanUndo() && aSteps-- > 0)
-        mUndoBuffer[--mUndoIndex].Undo(this);
+        std::visit([this](auto&& arg)
+        {
+            arg.Undo(this);
+        }, mUndoBuffer[--mUndoIndex]);
     std::string findWord = mFindReplaceHandler.GetFindWord();
     if (!findWord.empty()) {
         mFindReplaceHandler.resetMatches();
@@ -2077,7 +2095,10 @@ void TextEditor::Undo(int aSteps) {
 
 void TextEditor::Redo(int aSteps) {
     while (CanRedo() && aSteps-- > 0)
-        mUndoBuffer[mUndoIndex++].Redo(this);
+        std::visit([this](auto&& arg)
+        {
+            arg.Redo(this);
+        }, mUndoBuffer[mUndoIndex++]);
     std::string findWord = mFindReplaceHandler.GetFindWord();
     if (!findWord.empty()) {
         mFindReplaceHandler.resetMatches();
@@ -2391,7 +2412,7 @@ bool TextEditor::FindReplaceHandler::Replace(TextEditor *editor, bool next) {
         ImGui::SetKeyboardFocusHere(0);
 
         u.mAfter = editor->mState;
-        editor->AddUndo(u);
+        editor->AddUndo(std::move(u));
         editor->mTextChanged = true;
         mMatches.erase(mMatches.begin() + matchIndex - 1);
 
@@ -2976,6 +2997,24 @@ void TextEditor::UndoRecord::Redo(TextEditor *aEditor) {
     aEditor->mState = mAfter;
     aEditor->EnsureCursorVisible();
 
+}
+
+void TextEditor::CompoundUndo::Undo(TextEditor *aEditor) {
+    for(auto it = m_inner.rbegin(); it != m_inner.rend(); ++it) {
+      std::visit([aEditor](auto&& arg)
+        {
+            arg.Undo(aEditor);
+        }, *it);
+    }
+}
+
+void TextEditor::CompoundUndo::Redo(TextEditor *aEditor) {
+    for(auto it = m_inner.begin(); it != m_inner.end(); ++it) {
+      std::visit([aEditor](auto&& arg)
+        {
+            arg.Redo(aEditor);
+        }, *it);
+    }
 }
 
 bool TokenizeCStyleString(const char *in_begin, const char *in_end, const char *&out_begin, const char *&out_end) {
