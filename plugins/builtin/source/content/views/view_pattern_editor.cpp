@@ -2450,22 +2450,28 @@ namespace hex::plugin::builtin {
             m_breakpoints = evaluator->getBreakpoints();
             m_textEditor.SetBreakpoints(m_breakpoints);
         });
-
         ShortcutManager::addShortcut(this, CTRL + Keys::K + AllowWhileTyping, "hex.builtin.view.pattern_editor.shortcut.comment", [this] {
             if (m_textEditor.IsReadOnly()) {
               return;
             }
             
-            const auto& patternLangDesc = PatternLanguage();
+            const auto& langDesc = PatternLanguage();
             auto [selectionStart, selectionEnd] = m_textEditor.GetSelection();
-            const auto mode = m_textEditor.GetSelectionMode();
+            auto cursor = m_textEditor.GetCursorPosition();
             if (selectionStart.mLine > selectionEnd.mLine) {
               std::swap(selectionStart, selectionEnd);
             } 
+            if (cursor.mLine < selectionStart.mLine || cursor.mLine > selectionEnd.mLine) {
+              // suppose lines 0..n
+              // when cursor is at line 2, then CTRL + A -> [start, end] is 0..n, cursor line is 2
+              // when writing and not moving the cursor using arrows, the default selection is [0,0] but cursor is at the last line...
+              return;
+            }
             const auto startLine = selectionStart.mLine;
             auto originalCursor = m_textEditor.GetCursorPosition();
             auto linesToPrepend = std::max(1, selectionEnd.mLine - startLine + 1);
             
+            const auto mode = m_textEditor.GetSelectionMode();
             auto session = m_textEditor.StartUndoSession();
             for (auto lineOffset = 0; lineOffset < linesToPrepend; ++lineOffset) {
               auto line = startLine + lineOffset;
@@ -2473,11 +2479,11 @@ namespace hex::plugin::builtin {
                 continue;
               }
               m_textEditor.JumpToLine(line);
-              m_textEditor.InsertTextUndoable(patternLangDesc.mSingleLineComment, session);
+              m_textEditor.InsertTextUndoable(langDesc.mSingleLineComment, session);
             }
             m_textEditor.EndUndoSession(std::move(session));
 
-            originalCursor.mColumn += patternLangDesc.mSingleLineComment.size();
+            originalCursor.mColumn += langDesc.mSingleLineComment.size();
             m_textEditor.SetCursorPosition(originalCursor);
             m_textEditor.SetSelection(selectionStart, selectionEnd, mode);
         });
