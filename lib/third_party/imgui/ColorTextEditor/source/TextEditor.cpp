@@ -1552,7 +1552,7 @@ void TextEditor::InsertText(const std::string &aValue) {
     InsertText(aValue.c_str());
 }
 
-void TextEditor::InsertTextUndoable(const char* aValue, UndoSession& undoer) {
+void TextEditor::InsertTextUndoable(const std::string &aValue, UndoSession& undoer) {
         UndoRecord u;
         u.mBefore = mState;
 

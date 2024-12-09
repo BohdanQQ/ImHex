@@ -368,7 +368,7 @@ public:
 	void InsertText(const std::string& aValue);
 	void InsertText(const char* aValue);
   class UndoSession;
-  void InsertTextUndoable(const char* aValue, UndoSession& undoer);
+  void InsertTextUndoable(const std::string& aValue, UndoSession& undoer);
 
 	void MoveUp(int aAmount = 1, bool aSelect = false);
 	void MoveDown(int aAmount = 1, bool aSelect = false);

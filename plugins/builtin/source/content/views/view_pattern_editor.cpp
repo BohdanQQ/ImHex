@@ -2452,12 +2452,11 @@ namespace hex::plugin::builtin {
         });
 
         ShortcutManager::addShortcut(this, CTRL + Keys::K + AllowWhileTyping, "hex.builtin.view.pattern_editor.shortcut.comment", [this] {
-            // const auto cursorLine = m_textEditor.GetCursorPosition().mLine;
             if (m_textEditor.IsReadOnly()) {
               return;
             }
-
-            const char COMMENT_STR[3] = "//";
+            
+            const auto& patternLangDesc = PatternLanguage();
             auto [selectionStart, selectionEnd] = m_textEditor.GetSelection();
             const auto mode = m_textEditor.GetSelectionMode();
             if (selectionStart.mLine > selectionEnd.mLine) {
@@ -2474,11 +2473,11 @@ namespace hex::plugin::builtin {
                 continue;
               }
               m_textEditor.JumpToLine(line);
-              m_textEditor.InsertTextUndoable(COMMENT_STR, session);
+              m_textEditor.InsertTextUndoable(patternLangDesc.mSingleLineComment, session);
             }
             m_textEditor.EndUndoSession(std::move(session));
 
-            originalCursor.mColumn += sizeof(COMMENT_STR) - 1;
+            originalCursor.mColumn += patternLangDesc.mSingleLineComment.size();
             m_textEditor.SetCursorPosition(originalCursor);
             m_textEditor.SetSelection(selectionStart, selectionEnd, mode);
         });
