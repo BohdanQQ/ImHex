@@ -520,9 +520,11 @@ private:
 		EditorState mBefore;
 		EditorState mAfter;
 	};
-
+  
+  class CompoundUndo;
+	typedef std::vector<std::variant<UndoRecord, CompoundUndo>> UndoBuffer;
   class CompoundUndo {
-    std::vector<std::variant<UndoRecord, CompoundUndo>> m_inner;
+    TextEditor::UndoBuffer m_inner;
   public:
 
 		CompoundUndo() {};
@@ -534,12 +536,10 @@ private:
     void Add(const T&) = delete;
     
     template <typename UndoT>
-    void Add(UndoT&& record) {
-      m_inner.emplace_back(record);
+    void Add(UndoT&& undo) {
+      m_inner.emplace_back(std::move(undo));
     }
   };
-
-	typedef std::vector<std::variant<UndoRecord, CompoundUndo>> UndoBuffer;
 
 	void ProcessInputs();
 	void Colorize(int aFromLine = 0, int aCount = -1);
@@ -650,25 +650,23 @@ private:
 
   public:
     class UndoSession {
+    UndoSession() : m_result() {}
+
     template<class T>
-    void AddUndo(T& undo) = delete;
+    void AddUndo(T& undo) = delete; // disallow any other version (force temporaries or move)
+
     template<class T>
     void AddUndo(T&& undo) {
       m_result.Add(std::move(undo));
     }
-    UndoSession() : m_result() {}
+
     CompoundUndo m_result;
+    
     friend TextEditor;
   };
 
-  UndoSession StartUndoSession() {
-    return UndoSession();
-  }
-  
-  void EndUndoSession(UndoSession&& session) {
-    AddUndoGen(std::move(session.m_result));
-  }
-
+  UndoSession StartUndoSession() const;
+  void EndUndoSession(UndoSession&& session);
 };
 
 bool TokenizeCStyleString(const char * in_begin, const char * in_end, const char *& out_begin, const char *& out_end);

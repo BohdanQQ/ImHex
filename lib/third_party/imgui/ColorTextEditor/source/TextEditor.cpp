@@ -1558,7 +1558,7 @@ void TextEditor::InsertText(const std::string &aValue) {
     InsertText(aValue.c_str());
 }
 
-void TextEditor::InsertTextUndoable(const std::string &aValue, UndoSession& undoer) {
+void TextEditor::InsertTextUndoable(const std::string &aValue, UndoSession& session) {
         UndoRecord u;
         u.mBefore = mState;
 
@@ -1576,7 +1576,7 @@ void TextEditor::InsertTextUndoable(const std::string &aValue, UndoSession& undo
 
         u.mAddedEnd = GetActualCursorCoordinates();
         u.mAfter    = mState;
-        undoer.AddUndo(std::move(u));
+        session.AddUndo(std::move(u));
 }
 
 void TextEditor::InsertText(const char *aValue) {
@@ -3731,4 +3731,12 @@ const TextEditor::LanguageDefinition &TextEditor::LanguageDefinition::Lua() {
         inited = true;
     }
     return langDef;
+}
+
+TextEditor::UndoSession TextEditor::StartUndoSession() const {
+    return UndoSession();
+}
+
+void TextEditor::EndUndoSession(UndoSession&& session) {
+    AddUndoGen(std::move(session.m_result));
 }
