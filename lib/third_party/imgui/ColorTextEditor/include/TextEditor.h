@@ -556,13 +556,7 @@ private:
 	void AddUndo(UndoRecord&& aValue);
   template<class T>
   void AddUndoGen(T&& value) {
-      IM_ASSERT(!mReadOnly);
-    // printf("AddUndo: (@%d.%d) +\'%s' [%d.%d .. %d.%d], -\'%s', [%d.%d .. %d.%d] (@%d.%d)\n",
-    //	aValue.mBefore.mCursorPosition.mLine, aValue.mBefore.mCursorPosition.mColumn,
-    //	aValue.mAdded.c_str(), aValue.mAddedStart.mLine, aValue.mAddedStart.mColumn, aValue.mAddedEnd.mLine, aValue.mAddedEnd.mColumn,
-    //	aValue.mRemoved.c_str(), aValue.mRemovedStart.mLine, aValue.mRemovedStart.mColumn, aValue.mRemovedEnd.mLine, aValue.mRemovedEnd.mColumn,
-    //	aValue.mAfter.mCursorPosition.mLine, aValue.mAfter.mCursorPosition.mColumn
-    //	);
+    IM_ASSERT(!mReadOnly);
 
     mUndoBuffer.resize((size_t)(mUndoIndex + 1));
     mUndoBuffer.back() = std::variant<UndoRecord, CompoundUndo>(std::move(value));
@@ -671,8 +665,8 @@ private:
     return UndoSession();
   }
   
-  void EndUndoSession(UndoSession&& builder) {
-    AddUndoGen(std::move(builder).m_result);
+  void EndUndoSession(UndoSession&& session) {
+    AddUndoGen(std::move(session.m_result));
   }
 
 };
