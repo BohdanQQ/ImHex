@@ -211,6 +211,8 @@ namespace hex {
                         }
                     }
                 }
+
+                EventAnySettingChanged::post();
             }
 
         }
@@ -906,10 +908,17 @@ namespace hex {
             });
 
             if (shortcut != Shortcut::None) {
+                auto callbackIfEnabled  = [enabledCallback, function]{ if (enabledCallback()) { function(); } };
+
+                const auto unlocalizedShortcutName =
+                    unlocalizedMainMenuNames.size() == 1 ?
+                        std::vector { unlocalizedMainMenuNames.back() } :
+                        std::vector(unlocalizedMainMenuNames.begin() + 1, unlocalizedMainMenuNames.end());
+
                 if (shortcut.isLocal() && view != nullptr)
-                    ShortcutManager::addShortcut(view, shortcut, unlocalizedMainMenuNames.back(), function);
+                    ShortcutManager::addShortcut(view, shortcut, unlocalizedShortcutName, callbackIfEnabled);
                 else
-                    ShortcutManager::addGlobalShortcut(shortcut, unlocalizedMainMenuNames.back(), function);
+                    ShortcutManager::addGlobalShortcut(shortcut, unlocalizedShortcutName, callbackIfEnabled);
             }
         }
 

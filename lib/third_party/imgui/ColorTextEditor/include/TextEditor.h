@@ -322,7 +322,6 @@ public:
         return this;
     }
 
-
     class FindReplaceHandler;
 
 public:
@@ -335,6 +334,10 @@ public:
     FindReplaceHandler *GetFindReplaceHandler() { return &mFindReplaceHandler; }
 	int GetTotalLines() const { return (int)mLines.size(); }
 	bool IsOverwrite() const { return mOverwrite; }
+    void SetTopMarginChanged(int newMargin) {
+        mNewTopMargin = newMargin;
+        mTopMarginChanged = true;
+    }
     void setFocusAtCoords(const Coordinates &coords) {
         mFocusAtCoords = coords;
         mUpdateFocus = true;
@@ -612,6 +615,8 @@ private:
 	int mUndoIndex;
     bool mScrollToBottom;
     float mTopMargin;
+    float mNewTopMargin;
+    bool mTopMarginChanged=false;
 
 	int mTabSize;
 	bool mOverwrite;
