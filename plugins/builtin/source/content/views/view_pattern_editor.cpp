@@ -2578,15 +2578,33 @@ namespace hex::plugin::builtin {
             
             const auto mode = m_textEditor.GetSelectionMode();
             auto session = m_textEditor.StartUndoSession();
+
+            auto areAllSpace = [](const std::string& aStr) { return std::all_of(aStr.cbegin(), aStr.cend(), [](char c) { return std::isspace(c); }); };
+            bool progressMade =false;          
             for (auto lineOffset = 0; lineOffset < linesToPrepend; ++lineOffset) {
-              auto line = startLine + lineOffset;
-              if (m_textEditor.GetLineText(line).empty()) {
+              const auto lineIdx = startLine + lineOffset;
+              const auto lineText = m_textEditor.GetLineText(lineIdx); 
+              if (lineText.empty() || areAllSpace(lineText)) {
                 continue;
               }
-              m_textEditor.JumpToLine(line);
+
+              // apart from empty lines, this also skips lines which are already commented out
+              const auto commentIdx = lineText.find(langDesc.mSingleLineComment);
+              if (commentIdx != std::string::npos) {
+                const std::string prefix = lineText.substr(0, commentIdx);
+                if (areAllSpace(prefix)) {
+                  continue;
+                }
+              }
+              
+              progressMade = true;
+              m_textEditor.JumpToLine(lineIdx);
               m_textEditor.InsertTextUndoable(langDesc.mSingleLineComment, session);
             }
-            m_textEditor.EndUndoSession(std::move(session));
+
+            if (progressMade) {
+              m_textEditor.EndUndoSession(std::move(session));
+            }
 
             originalCursor.mColumn += langDesc.mSingleLineComment.size();
             m_textEditor.SetCursorPosition(originalCursor);
