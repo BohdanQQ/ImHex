@@ -4,6 +4,7 @@
 #include <vector>
 #include <array>
 #include <memory>
+#include <functional>
 #include <unordered_set>
 #include <unordered_map>
 #include <map>
@@ -144,20 +145,22 @@ public:
     public:
         ActionableBox()=default;
         explicit ActionableBox(const ImRect &box) : mBox(box) {}
-        std::function<void()> mCallback;
         virtual bool trigger() {
             return ImGui::IsMouseHoveringRect(mBox.Min,mBox.Max);
         }
-        void setCallback(const std::function<void()> &callback) { mCallback = callback; }
+
+        virtual void callback() {}
     };
 
     class CursorChangeBox : public ActionableBox {
     public:
         CursorChangeBox()=default;
         explicit CursorChangeBox(const ImRect &box) : ActionableBox(box) {
-            setCallback([]() {
-                ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
-            });
+
+        }
+
+        void callback() override {
+            ImGui::SetMouseCursor(ImGuiMouseCursor_Hand);
         }
     };
 
@@ -165,14 +168,20 @@ public:
         Coordinates mPos;
     public:
         ErrorGotoBox()=default;
-        ErrorGotoBox(const ImRect &box, const Coordinates &pos, TextEditor *editor) : ActionableBox(box), mPos(pos) {
-            setCallback( [this,editor]() {
-                editor->JumpToCoords(mPos);
-            });
+        ErrorGotoBox(const ImRect &box, const Coordinates &pos, TextEditor *editor) : ActionableBox(box), mPos(pos), mEditor(editor) {
+
         }
+
         bool trigger() override {
             return ActionableBox::trigger() && ImGui::IsMouseClicked(0);
         }
+
+        void callback() override {
+            mEditor->JumpToCoords(mPos);
+        }
+
+    private:
+        TextEditor *mEditor;
     };
 
     using ErrorGotoBoxes = std::map<Coordinates, ErrorGotoBox>;
@@ -184,18 +193,19 @@ public:
     public:
         ErrorHoverBox()=default;
         ErrorHoverBox(const ImRect &box, const Coordinates &pos,const char *errorText) : ActionableBox(box), mPos(pos), mErrorText(errorText) {
-            setCallback([this]() {
-                ImGui::BeginTooltip();
-                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.2f, 0.2f, 1.0f));
-                ImGui::Text("Error at line %d:", mPos.mLine);
-                ImGui::PopStyleColor();
-                ImGui::Separator();
-                ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.5f, 0.5f, 0.2f, 1.0f));
-                ImGui::TextUnformatted(mErrorText.c_str());
-                ImGui::PopStyleColor();
-                ImGui::EndTooltip();
-                }
-            );
+
+        }
+
+        void callback() override {
+            ImGui::BeginTooltip();
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(1.0f, 0.2f, 0.2f, 1.0f));
+            ImGui::Text("Error at line %d:", mPos.mLine);
+            ImGui::PopStyleColor();
+            ImGui::Separator();
+            ImGui::PushStyleColor(ImGuiCol_Text, ImVec4(0.5f, 0.5f, 0.2f, 1.0f));
+            ImGui::TextUnformatted(mErrorText.c_str());
+            ImGui::PopStyleColor();
+            ImGui::EndTooltip();
         }
     };
     using ErrorHoverBoxes = std::map<Coordinates, ErrorHoverBox>;
@@ -312,7 +322,6 @@ public:
         return this;
     }
 
-
     class FindReplaceHandler;
 
 public:
@@ -325,11 +334,20 @@ public:
     FindReplaceHandler *GetFindReplaceHandler() { return &mFindReplaceHandler; }
 	int GetTotalLines() const { return (int)mLines.size(); }
 	bool IsOverwrite() const { return mOverwrite; }
+    void SetTopMarginChanged(int newMargin) {
+        mNewTopMargin = newMargin;
+        mTopMarginChanged = true;
+    }
     void setFocusAtCoords(const Coordinates &coords) {
         mFocusAtCoords = coords;
         mUpdateFocus = true;
     }
     void SetOverwrite(bool aValue) { mOverwrite = aValue; }
+
+    std::string ReplaceStrings(std::string string, const std::string &search, const std::string &replace);
+    std::vector<std::string> SplitString(const std::string &string, const std::string &delimiter, bool removeEmpty);
+    std::string ReplaceTabsWithSpaces(const std::string& string, uint32_t tabSize);
+    std::string PreprocessText(const std::string &code);
 
 	void SetReadOnly(bool aValue);
 	bool IsReadOnly() const { return mReadOnly; }
@@ -571,6 +589,7 @@ private:
 	int GetCharacterColumn(int aLine, int aIndex) const;
 	int GetLineCharacterCount(int aLine) const;
     int Utf8CharsToBytes(const Coordinates &aCoordinates) const;
+    int GetLongestLineLength() const;
     unsigned long long GetLineByteCount(int aLine) const;
 	int GetStringCharacterCount(std::string str) const;
 	int GetLineMaxColumn(int aLine) const;
@@ -596,6 +615,8 @@ private:
 	int mUndoIndex;
     bool mScrollToBottom;
     float mTopMargin;
+    float mNewTopMargin;
+    bool mTopMarginChanged=false;
 
 	int mTabSize;
 	bool mOverwrite;
@@ -605,6 +626,7 @@ private:
 	bool mScrollToTop;
 	bool mTextChanged;
 	bool mColorizerEnabled;
+    float mLongest;
 	float mTextStart;                   // position (in pixels) where a code line starts relative to the left of the TextEditor.
 	int  mLeftMargin;
 	bool mCursorPositionChanged;
