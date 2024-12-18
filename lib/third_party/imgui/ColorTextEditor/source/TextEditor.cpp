@@ -3076,7 +3076,8 @@ void TextEditor::UndoRecord::Redo(TextEditor *aEditor) {
 }
 
 void TextEditor::CompoundUndo::Undo(TextEditor *aEditor) {
-    for(auto it = m_inner.rbegin(); it != m_inner.rend(); ++it) {
+
+    for(auto it = mInner.rbegin(); it != mInner.rend(); ++it) {
       std::visit([aEditor](auto&& arg)
         {
             arg.Undo(aEditor);
@@ -3085,7 +3086,7 @@ void TextEditor::CompoundUndo::Undo(TextEditor *aEditor) {
 }
 
 void TextEditor::CompoundUndo::Redo(TextEditor *aEditor) {
-    for(auto it = m_inner.begin(); it != m_inner.end(); ++it) {
+    for(auto it = mInner.begin(); it != mInner.end(); ++it) {
       std::visit([aEditor](auto&& arg)
         {
             arg.Redo(aEditor);

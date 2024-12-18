@@ -542,7 +542,7 @@ private:
   class CompoundUndo;
 	typedef std::vector<std::variant<UndoRecord, CompoundUndo>> UndoBuffer;
   class CompoundUndo {
-    TextEditor::UndoBuffer m_inner;
+    TextEditor::UndoBuffer mInner;
   public:
 
 		CompoundUndo() {};
@@ -555,7 +555,7 @@ private:
     
     template <typename UndoT>
     void Add(UndoT&& undo) {
-      m_inner.emplace_back(std::move(undo));
+      mInner.emplace_back(std::move(undo));
     }
   };
 
