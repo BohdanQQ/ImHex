@@ -154,9 +154,9 @@ namespace hex::plugin::builtin {
                     u64 inputA = m_region.getStartAddress();
                     u64 inputB = m_region.getEndAddress();
 
-                    if (justOpened) {
+                    if (m_justOpened) {
                         ImGui::SetKeyboardFocusHere();
-                        justOpened = false;
+                        m_justOpened = false;
                     }
                     ImGuiExt::InputHexadecimal("hex.builtin.view.hex_editor.select.offset.begin"_lang, &inputA, ImGuiInputTextFlags_AutoSelectAll);
                     ImGuiExt::InputHexadecimal("hex.builtin.view.hex_editor.select.offset.end"_lang, &inputB, ImGuiInputTextFlags_AutoSelectAll);
@@ -173,9 +173,9 @@ namespace hex::plugin::builtin {
                     u64 inputA = m_region.getStartAddress();
                     u64 inputB = m_region.getSize();
 
-                    if (justOpened) {
+                    if (m_justOpened) {
                         ImGui::SetKeyboardFocusHere();
-                        justOpened = false;
+                        m_justOpened = false;
                     }
                     ImGuiExt::InputHexadecimal("hex.builtin.view.hex_editor.select.offset.begin"_lang, &inputA, ImGuiInputTextFlags_AutoSelectAll);
                     ImGuiExt::InputHexadecimal("hex.builtin.view.hex_editor.select.offset.size"_lang, &inputB, ImGuiInputTextFlags_AutoSelectAll);
@@ -217,7 +217,7 @@ namespace hex::plugin::builtin {
 
     private:
         Region m_region = { 0, 1 };
-        bool justOpened = true;
+        bool m_justOpened = true;
     };
 
     class PopupBaseAddress : public ViewHexEditor::Popup {
@@ -550,7 +550,15 @@ namespace hex::plugin::builtin {
             return result;
         });
 
+        static bool showHighlights = true;
+        ContentRegistry::Settings::onChange("hex.builtin.setting.hex_editor", "hex.builtin.setting.hex_editor.show_highlights", [](const ContentRegistry::Settings::SettingsValue &value) {
+            showHighlights = value.get<bool>(true);
+        });
+
         m_hexEditor.setBackgroundHighlightCallback([this](u64 address, const u8 *data, size_t size) -> std::optional<color_t> {
+            if (!showHighlights)
+                return std::nullopt;
+
             if (auto highlight = m_backgroundHighlights->find(address); highlight != m_backgroundHighlights->end()) {
                 if (std::ranges::any_of(*m_hoverHighlights, [region = Region(address, size)](const Region &highlight) { return highlight.overlaps(region); }))
                     return ImAlphaBlendColors(highlight->second, 0xA0FFFFFF);
@@ -578,6 +586,9 @@ namespace hex::plugin::builtin {
         });
 
         m_hexEditor.setHoverChangedCallback([this](u64 address, size_t size) {
+            if (!showHighlights)
+                return;
+
             m_hoverHighlights->clear();
 
             if (Region(address, size) == Region::Invalid())
@@ -590,6 +601,9 @@ namespace hex::plugin::builtin {
         });
 
         m_hexEditor.setTooltipCallback([](u64 address, const u8 *data, size_t size) {
+            if (!showHighlights)
+                return;
+
             for (const auto &[id, callback] : ImHexApi::HexEditor::impl::getTooltipFunctions()) {
                 callback(address, data, size);
             }
@@ -1110,6 +1124,26 @@ namespace hex::plugin::builtin {
         ContentRegistry::Settings::onChange("hex.builtin.setting.hex_editor", "hex.builtin.setting.hex_editor.char_padding", [this](const ContentRegistry::Settings::SettingsValue &value) {
             m_hexEditor.setCharacterCellPadding(value.get<int>(0));
         });
+
+        static bool showSelectionInWindowFooter = true;
+        ContentRegistry::Settings::onChange("hex.builtin.setting.hex_editor", "hex.builtin.setting.hex_editor.show_selection", [this](const ContentRegistry::Settings::SettingsValue &value) {
+            const auto show = value.get<bool>(false);
+
+            m_hexEditor.setShowSelectionInFooter(show);
+            showSelectionInWindowFooter = !show;
+        });
+
+        ContentRegistry::Interface::addFooterItem([] {
+            if (!showSelectionInWindowFooter) return;
+
+            if (auto selection = ImHexApi::HexEditor::getSelection(); selection.has_value()) {
+                ImGuiExt::TextFormatted("0x{0:02X} - 0x{1:02X} (0x{2:02X} | {2} bytes)",
+                    selection->getStartAddress(),
+                    selection->getEndAddress(),
+                    selection->getSize()
+                );
+            }
+        });
     }
 
     void ViewHexEditor::registerMenuItems() {
@@ -1249,9 +1283,27 @@ namespace hex::plugin::builtin {
                             callback(
                                     provider,
                                     selection->getStartAddress(),
-                                    selection->size
+                                    selection->size,
+                                    false
                             ).c_str()
                     );
+                }
+
+                if (ImGui::IsItemHovered(ImGuiHoveredFlags_DelayNormal)) {
+                    const auto previewText = callback(
+                        provider,
+                        selection->getStartAddress(),
+                        std::min<u64>(selection->size, 32),
+                        true
+                    );
+
+                    if (!previewText.empty()) {
+                        if (ImGui::BeginTooltip()) {
+                            ImGuiExt::Header("hex.builtin.view.hex_editor.menu.edit.copy_as.preview"_lang, true);
+                            ImGui::TextDisabled("%s", previewText.c_str());
+                            ImGui::EndTooltip();
+                        }
+                    }
                 }
             }
         },
@@ -1385,13 +1437,17 @@ namespace hex::plugin::builtin {
                                                         return (value >= provider->getBaseAddress()) && (value < (provider->getBaseAddress() + provider->getActualSize()));
                                                     };
 
+                                                    ImGui::PushID(1);
                                                     if (ImGui::MenuItem(hex::format("0x{:08X}", littleEndianValue).c_str(), "hex.ui.common.little_endian"_lang, false, canJumpTo(littleEndianValue))) {
                                                         ImHexApi::HexEditor::setSelection(littleEndianValue, 1);
                                                     }
+                                                    ImGui::PopID();
 
+                                                    ImGui::PushID(2);
                                                     if (ImGui::MenuItem(hex::format("0x{:08X}", bigEndianValue).c_str(), "hex.ui.common.big_endian"_lang, false, canJumpTo(bigEndianValue))) {
                                                         ImHexApi::HexEditor::setSelection(bigEndianValue, 1);
                                                     }
+                                                    ImGui::PopID();
 
                                                     if (ImGui::MenuItem("hex.builtin.view.hex_editor.menu.edit.jump_to.curr_pattern"_lang, "", false, selection.has_value() && ContentRegistry::PatternLanguage::getRuntime().getCreatedPatternCount() > 0)) {
                                                         auto patterns = ContentRegistry::PatternLanguage::getRuntime().getPatternsAtAddress(selection->getStartAddress());

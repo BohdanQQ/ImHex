@@ -77,8 +77,8 @@ public:
 		Coordinates() : mLine(0), mColumn(0) {}
 		Coordinates(int aLine, int aColumn) : mLine(aLine), mColumn(aColumn)
 		{
-			assert(aLine >= 0);
-			assert(aColumn >= 0);
+			IM_ASSERT(aLine >= 0);
+			IM_ASSERT(aColumn >= 0);
 		}
 		static Coordinates Invalid() { static Coordinates invalid(-1, -1); return invalid; }
 
@@ -307,7 +307,8 @@ public:
         auto text = GetText();
         return text.empty() || text == "\n";
     }
-
+    void SetTopLine();
+    void SetScrollY();
 	void SetTextLines(const std::vector<std::string>& aLines);
 	std::vector<std::string> GetTextLines() const;
 
@@ -410,7 +411,7 @@ public:
 	void Cut();
 	void Paste();
 	void Delete();
-    int32_t GetPageSize() const;
+    float GetPageSize() const;
 
 	ImVec2 &GetCharAdvance() { return mCharAdvance; }
 
@@ -606,63 +607,69 @@ private:
 
 	void HandleKeyboardInputs();
 	void HandleMouseInputs();
-	void Render();
+	void RenderText(const char *aTitle, const ImVec2 &lineNumbersStartPos, const ImVec2 &textEditorSize);
 
-	float mLineSpacing;
+	float mLineSpacing = 1.0F;
 	Lines mLines;
-	EditorState mState;
+	EditorState mState = {};
 	UndoBuffer mUndoBuffer;
-	int mUndoIndex;
-    bool mScrollToBottom;
-    float mTopMargin;
-    float mNewTopMargin;
-    bool mTopMarginChanged=false;
+	int mUndoIndex = 0;
+    bool mScrollToBottom = false;
+    float mTopMargin = 0.0F;
+    float mNewTopMargin = 0.0F;
+    float mOldTopMargin = 0.0F;
+    bool mTopMarginChanged = false;
 
-	int mTabSize;
-	bool mOverwrite;
-	bool mReadOnly;
-	bool mWithinRender;
-	bool mScrollToCursor;
-	bool mScrollToTop;
-	bool mTextChanged;
-	bool mColorizerEnabled;
-    float mLongest;
-	float mTextStart;                   // position (in pixels) where a code line starts relative to the left of the TextEditor.
-	int  mLeftMargin;
-	bool mCursorPositionChanged;
-    bool mBreakPointsChanged;
-	int mColorRangeMin, mColorRangeMax;
-	SelectionMode mSelectionMode;
-	bool mHandleKeyboardInputs;
-	bool mHandleMouseInputs;
-	bool mIgnoreImGuiChild;
-	bool mShowWhitespaces;
+	int mTabSize = 4;
+	bool mOverwrite = false;
+	bool mReadOnly = false;
+	bool mWithinRender = false;
+	bool mScrollToCursor = false;
+	bool mScrollToTop = false;
+	bool mTextChanged = false;
+	bool mColorizerEnabled = true;
+    float mLineNumberFieldWidth = 0.0F;
+    float mLongest = 0.0F;
+	float mTextStart = 20.0F;                   // position (in pixels) where a code line starts relative to the left of the TextEditor.
+	float  mLeftMargin = 10.0;
+    float mTopLine = 0.0F;
+    bool mSetTopLine = false;
+	bool mCursorPositionChanged = false;
+    bool mBreakPointsChanged = false;
+	int mColorRangeMin = 0, mColorRangeMax = 0;
+	SelectionMode mSelectionMode = SelectionMode::Normal;
+	bool mHandleKeyboardInputs = true;
+	bool mHandleMouseInputs = true;
+	bool mIgnoreImGuiChild = false;
+	bool mShowWhitespaces = true;
 
 	static Palette sPaletteBase;
-	Palette mPalette;
-	LanguageDefinition mLanguageDefinition;
+	Palette mPalette = {};
+	LanguageDefinition mLanguageDefinition = {};
 	RegexList mRegexList;
-    bool mCheckComments;
-	Breakpoints mBreakpoints;
-	ErrorMarkers mErrorMarkers;
-    ErrorHoverBoxes mErrorHoverBoxes;
-    ErrorGotoBoxes mErrorGotoBoxes;
-    CursorBoxes mCursorBoxes;
-	ImVec2 mCharAdvance;
-	Coordinates mInteractiveStart, mInteractiveEnd;
+    bool mCheckComments = true;
+	Breakpoints mBreakpoints = {};
+	ErrorMarkers mErrorMarkers = {};
+    ErrorHoverBoxes mErrorHoverBoxes = {};
+    ErrorGotoBoxes mErrorGotoBoxes = {};
+    CursorBoxes mCursorBoxes = {};
+	ImVec2 mCharAdvance = {};
+	Coordinates mInteractiveStart = {}, mInteractiveEnd = {};
 	std::string mLineBuffer;
-	uint64_t mStartTime;
+	uint64_t mStartTime = 0;
 	std::vector<std::string> mDefines;
-    TextEditor *mSourceCodeEditor=nullptr;
-    float m_linesAdded = 0;
-    float m_savedScrollY = 0;
-    float m_pixelsAdded = 0;
-    float m_shiftedScrollY = 0;
-	float mLastClick;
-    bool mShowCursor;
-    bool mShowLineNumbers;
+    TextEditor *mSourceCodeEditor = nullptr;
+    float mSavedScrollY = 0;
+    float mShiftedScrollY = 0;
+    float mScrollY = 0;
+    float mScrollYIncrement = 0.0F;
+    bool mSetScrollY = false;
+    float mNumberOfLinesDisplayed = 0;
+	float mLastClick = -1.0F;
+    bool mShowCursor = true;
+    bool mShowLineNumbers = true;
     bool mRaiseContextMenu = false;
-    Coordinates mFocusAtCoords;
+    Coordinates mFocusAtCoords = {};
     bool mUpdateFocus = false;
 
     std::vector<std::string>  mClickableText;
